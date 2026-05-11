@@ -1,0 +1,1 @@
+# fallas_por_vibracion
