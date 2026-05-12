@@ -10,7 +10,11 @@ import scipy.io
 from scipy.stats import kurtosis
 import pandas as pd
 import numpy as np
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from xgboost import XGBClassifier
+from sklearn.metrics import f1_score
 
 
 
@@ -113,6 +117,28 @@ df_combinado = pd.concat([df_healthy, df_faulty], axis=0)
 # Los revuelvo
 df = df_combinado.sample(frac=1, random_state=45).reset_index(drop=True)
 
+df_features = df.drop('fault',axis=1)
+df_target = df['fault']
+
+features_train, features_test, target_train, target_test = train_test_split(
+    df_features, df_target, test_size=0.2,random_state=45
+    )
+
+modelo_gb = XGBClassifier(
+    n_estimators=50,
+    learning_rate=0.1,
+    max_depth=5,
+    #use_label_encoder=False,
+    eval_metric='logloss',
+    tree_method='hist'
+)
+modelo_gb.fit(features_train,target_train)
+predictions_valid = modelo_gb.predict(features_test)
+
+final_score = (cross_val_score(modelo_gb, features_train,target_train).sum())/5
+
+print(f'Puntuación media de la evaluación del modelo:{final_score:.2f}')
+print(f'Valor de F1:{f1_score(target_test,predictions_valid):.2f} ')
 
 #print(df.shape)
 #print(df.head())
