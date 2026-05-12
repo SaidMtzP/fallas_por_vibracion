@@ -7,7 +7,7 @@ Este es un archivo temporal.
 
 import scipy.io
 import pandas as pd
-#import numpy as np
+import numpy as np
 from matplotlib import pyplot as plt
 
 
@@ -18,10 +18,10 @@ def Sdt(row):
 
 mat = scipy.io.loadmat(r'C:\Users\angel\OneDrive\Documents\datasets\vibration_faults_dataset_for_rotating_machines\Faulty/F1.mat')
 
-senal = mat['H']
+senal = np.array(mat['H'])
 
 #senal = senal.flatten() 
-#print(senal.shape)
+print(senal[0])
 
 df = pd.DataFrame(senal,columns=('x','y','z'))
 
