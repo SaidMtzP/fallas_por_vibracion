@@ -10,8 +10,9 @@ import scipy.io
 from scipy.stats import kurtosis
 import pandas as pd
 import numpy as np
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
+# Librerias de ml
 from sklearn.model_selection import train_test_split, cross_val_score
 from xgboost import XGBClassifier
 from sklearn.metrics import f1_score
@@ -33,6 +34,7 @@ def sigma_function(signal):
     for i in range(signal.shape[0]):
         s_signal.append(signal[i].dot(signal[i].T).item()**0.5) # Funcion sigma
         #s_signal_normalized.append(s_signal[i]/max(s_signal))
+        # Se centra la señal para poderse utilizar despues
         s_signal_normalized.append(s_signal[i] - np.mean(s_signal))
         
     return s_signal_normalized
@@ -82,30 +84,35 @@ def CreacinDataFrame(path, fault):
     Cree una lista de diccionarios con esta informacion
     Al final se junto todo en un solo dataframe que es lo que retorna.
     '''
-    df_list = []
+    df_list = [] # Lista donde se guardaran los diccionarios de datos
     for file in os.listdir(path):
-        mat = scipy.io.loadmat(path+"/"+file)
-        signal = np.array(mat['H'])
+        mat = scipy.io.loadmat(path+"/"+file) # Se abre el archivo .mat
+        signal = np.array(mat['H']) # Se extrae unicamente la señal
 
-        s_signal = sigma_function(signal)
+        s_signal = sigma_function(signal) # Se crea la señal sigma
         
-        names = ['x','y','z']
-        data = {}
-        for p in names:
+        # Se crea la variable 'names' para crear variables diferentes
+        # con prefijos x,y,z
+        names = ['x','y','z'] 
+        data = {} # Se inicia el diccionario
+        for p in names: # Se crea un bucle para obtener los datos de cada señal
             for i in range(signal.shape[1]):
-                data[f"{p}_max"] = np.max(signal[:,i])
-                data[f"{p}_min"] = np.min(signal[:,i])
+                data[f"{p}_max"] = np.max(signal[:,i]) # max
+                data[f"{p}_min"] = np.min(signal[:,i]) # min
+                # RMS, Kurtosis, f_dom
                 data[f"{p}_rms"], data[f"{p}_kurt"], data[f"{p}_f_dom"] = GetFeatures(signal[:,i])
             
+        # Por ultimo se extrae lo mismo pero de la señal sigma
         data["s_max"] = np.max(s_signal)
         data["s_min"] = np.min(s_signal)
         data["s_rms"], data["s_kurt"], data["s_f_dom"] = GetFeatures(s_signal)
         
+        # Se llena el ultimo campo indicando si es motor con falla o no
         data["fault"] = fault
         
-        df_list.append(data)
+        df_list.append(data) # Se guarda los diccionarios en la lista
 
-    return pd.DataFrame(df_list)
+    return pd.DataFrame(df_list) # Se crea el dataframe y se retorna
 
 # Creo el dataframe para los motores sin fallas
 df_healthy = CreacinDataFrame(healthy_folder,0)
@@ -117,13 +124,28 @@ df_combinado = pd.concat([df_healthy, df_faulty], axis=0)
 # Los revuelvo
 df = df_combinado.sample(frac=1, random_state=45).reset_index(drop=True)
 
-df_features = df.drop('fault',axis=1)
-df_target = df['fault']
+#print(df.shape)
+#print(df.head())
+X = range(df_healthy.shape[0])
+X1 = range(df_faulty.shape[0])
+plt.plot(X,df_healthy['s_rms'])
+plt.plot(X1,df_faulty['s_rms'])
+plt.title('Comparación de comportamiento')
+plt.xlabel('Señales')
+plt.ylabel('RMS')
+plt.legend(["Saludable",'Con falla'])
+plt.show()
 
+df_features = df.drop('fault',axis=1) # Se genera el df de las caracteristicas
+df_target = df['fault'] # Y el del objetivo
+
+
+# Se separa los df en entrenamiento y test
 features_train, features_test, target_train, target_test = train_test_split(
     df_features, df_target, test_size=0.2,random_state=45
     )
 
+# Se crea el modelo de clasificacion por potenciacion de gradiante usando XGBoost
 modelo_gb = XGBClassifier(
     n_estimators=50,
     learning_rate=0.1,
@@ -132,22 +154,15 @@ modelo_gb = XGBClassifier(
     eval_metric='logloss',
     tree_method='hist'
 )
+
+# Se entrena el modelo
 modelo_gb.fit(features_train,target_train)
+# Se predice com el df de prueba
 predictions_valid = modelo_gb.predict(features_test)
 
+# Se califica el modelo usando la validacion cruzada
 final_score = (cross_val_score(modelo_gb, features_train,target_train).sum())/5
 
+# Se imprime el valor de la validacion cruzada y su valor F1(Precision y exactitud)
 print(f'Puntuación media de la evaluación del modelo:{final_score:.2f}')
 print(f'Valor de F1:{f1_score(target_test,predictions_valid):.2f} ')
-
-#print(df.shape)
-#print(df.head())
-#X = range(df_healthy.shape[0])
-#X1 = range(df_faulty.shape[0])
-#plt.plot(X,df_healthy['s_rms'])
-#plt.plot(X1,df_faulty['s_rms'])
-#plt.plot(X,df_healthy['y_kurt'])
-#plt.plot(X,df_healthy['z_kurt'])
-#plt.plot(X,df_healthy['s_kurt'])
-#plt.legend(["healthy",'faulty'])#,'z_kurt','s_kurt'])
-#plt.show()
